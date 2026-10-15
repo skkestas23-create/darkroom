@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<!-- Darkroom Pro. AI funkcijoms (AI: žmogus/plaukai/veidas, veido korekcija) reikia interneto ir paleidimo per http(s) ar localhost, ne file://.
+     Kompiuteryje: python3 -m http.server 8000 ir http://localhost:8000/darkroom-pro.html. Telefone: patalpinkite į Netlify/GitHub Pages. -->
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Darkroom Pro</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#16171d;--panel:#1f2129;--line:#32353f;--ink:#e9e7e2;--mute:#8d909c;--accent:#ff5a3c;--onacc:#16171d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16171d;--panel:#1f2129;--line:#32353f;--ink:#e9e7e2;--mute:#8d909c;--accent:#ff5a3c}}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eceae6;--panel:#fbfaf8;--line:#d6d3cc;--ink:#1c1d22;--mute:#6b6e78;--accent:#d93a1e;--onacc:#fff}}
+:root[data-theme="dark"]{--bg:#16171d;--panel:#1f2129;--line:#32353f;--ink:#e9e7e2;--mute:#8d909c;--accent:#ff5a3c;--onacc:#16171d}
+*{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:500 14px/1.3 Manrope,system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;font-weight:800;margin:0 auto 0 0;letter-spacing:-.02em}
+button,.btn{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 10px;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.on{background:var(--accent);color:var(--onacc);border-color:var(--accent)}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px}
+#disp{touch-action:none;cursor:crosshair;box-shadow:0 0 0 1px var(--line);background:repeating-conic-gradient(#c9c9c9 0 25%,#fff 0 50%) 0 0/16px 16px}
+nav{display:flex;border-top:1px solid var(--line);overflow-x:auto}
+nav button{flex:none;border:0;border-radius:0;background:var(--bg);color:var(--mute);padding:10px 14px;font-size:13px}
+nav button.on{background:var(--panel);color:var(--ink);box-shadow:inset 0 -3px var(--accent)}
+#panels{background:var(--panel);max-height:34vh;overflow:auto;padding:10px}
+.pn{display:none}.pn.on{display:block}
+.line{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.line label{width:78px;color:var(--mute)}
+.line input[type=range]{flex:1;accent-color:var(--accent)}
+.line output{width:34px;text-align:right}
+input[type=color]{width:44px;height:34px;border:1px solid var(--line);border-radius:6px;background:none;padding:2px}
+.grid{display:flex;flex-wrap:wrap;gap:8px}
+.row{display:flex;align-items:center;gap:6px;padding:6px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;background:var(--bg)}
+.row.on{border-color:var(--accent)}
+.row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;padding:6px 0}
+.row input[type=range]{width:70px;accent-color:var(--accent)}
+.row button{padding:5px 8px}
+#toast{position:fixed;left:50%;top:calc(56px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;z-index:5}
+#modal.show{display:flex}
+#modal img{max-width:100%;max-height:70%;background:repeating-conic-gradient(#c9c9c9 0 25%,#fff 0 50%) 0 0/16px 16px}
+#modal p{color:#fff;margin:0;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>Darkroom Pro</h1>
+  <button id="un" aria-label="Atšaukti">↶</button>
+  <button id="re" aria-label="Kartoti">↷</button>
+  <button id="imp">Įkelti</button>
+  <button id="exp" class="on">Eksportas</button>
+  <input id="file" type="file" accept="image/*" hidden>
+</header>
+<div id="stage"><canvas id="disp" width="900" height="650"></canvas></div>
+<nav>
+  <button data-t="p" class="on">Tapyba</button>
+  <button data-t="l">Sluoksniai</button>
+  <button data-t="s">Atranka</button><button data-t="c">Forma</button><button data-t="k">Lipdukai</button><button data-t="f">Filtrai</button>
+</nav>
+<div id="panels">
+  <div class="pn on" id="p-p">
+    <div class="line"><label>Įrankis</label>
+      <button id="t-brush" class="on">Teptukas</button><button id="t-eraser">Trintukas</button>
+      <input type="color" class="colin" id="col" value="#ff5a3c" aria-label="Spalva"></div>
+    <div class="line"><label>Dydis</label><input type="range" id="size" min="1" max="120" value="14"><output id="sizeo">14</output></div>
+    <div class="line"><label>Skaidrumas</label><input type="range" id="opac" min="5" max="100" value="100"><output id="opaco">100</output></div>
+  </div>
+  <div class="pn" id="p-l">
+    <button id="add" style="margin-bottom:8px">+ Naujas sluoksnis</button>
+    <div id="list"></div>
+  </div>
+  <div class="pn" id="p-s">
+    <div class="grid" style="margin-bottom:10px"><button id="t-lasso" class="on">Apvesti</button><button id="t-wand">Burtų lazdelė</button><button id="t-move">Perkelti</button><button id="addm">Atrankos režimas: nauja</button></div>
+    <div class="grid" style="margin-bottom:10px"><button data-s="aiperson" class="on">AI: žmogus</button><button data-s="aihair" class="on">AI: plaukai</button><button data-s="aiface" class="on">AI: veidas</button></div>
+    <div class="grid" style="margin-bottom:10px"><button data-s="face">Spalvos: veidas</button><button data-s="hair">Spalvos: plaukai</button></div>
+    <div class="line"><label>Jautrumas</label><input type="range" id="tol" min="1" max="100" value="25"></div>
+    <div class="line"><label>Dydis</label><input type="range" id="scl" min="10" max="400" value="100"></div>
+    <div class="line"><label>Pasukimas</label><input type="range" id="rot" min="-180" max="180" value="0"></div>
+    <div class="line"><label>Spalva</label><input type="color" class="colin" value="#ff5a3c" aria-label="Spalva"></div>
+    <div class="grid"><button data-s="cut">Iškirpti į naują sluoksnį</button><button data-s="copy">Kopijuoti</button><button data-s="del">Ištrinti</button><button data-s="rec">Perdažyti</button><button data-s="fill">Užpildyti</button><button data-s="inv">Apversti atranką</button><button data-s="smooth">Glotninti kraštus</button><button data-s="none">Panaikinti atranką</button></div>
+    <p style="color:var(--mute);margin:10px 0 0">Dydis, pasukimas ir „Perkelti“ veikia pasirinktą sluoksnį.</p>
+  </div>
+  <div class="pn" id="p-c">
+    <p style="margin:0 0 8px;color:var(--mute)">Vilkite pirštu per vaizdą, kad pakeistumėte formą pasirinktame sluoksnyje, be lipduko: pavyzdžiui, susiaurinkite žandikaulį ar pakelkite kaktą.</p>
+    <div class="grid" style="margin-bottom:10px"><button id="t-push">Stumdyti</button><button id="t-bulge">Išpūsti</button><button id="t-pinch">Susiaurinti</button></div>
+    <div class="line"><label>Dydis</label><input type="range" id="lsz" min="15" max="200" value="70"></div>
+    <div class="line"><label>Stiprumas</label><input type="range" id="lst" min="5" max="100" value="50"></div>
+    <p style="margin:10px 0 6px;color:var(--mute)">AI veido korekcija (pati randa veido kontūrą):</p>
+    <div class="line"><label>Veido plotis</label><input type="range" id="afw" min="-100" max="100" value="0"></div>
+    <div class="line"><label>Smakro ilgis</label><input type="range" id="afc" min="-100" max="100" value="0"></div>
+  </div>
+  <div class="pn" id="p-k">
+    <p style="margin:0 0 8px;color:var(--mute)">Lipdukas atsiranda naujame sluoksnyje pasirinkta spalva. Po to jį perkelkite ir keiskite dydį skirtuke „Atranka“.</p>
+    <div class="line"><label>Spalva</label><input type="color" class="colin" value="#ff5a3c" aria-label="Spalva"></div>
+    <div class="grid" id="stk"><button data-k="mus">Ūsai</button><button data-k="gls">Akiniai</button><button data-k="brd">Barzda</button><button data-k="hair">Plaukai</button></div>
+  </div>
+  <div class="pn" id="p-f">
+    <p style="margin:0 0 8px;color:var(--mute)">Filtrai taikomi pasirinktam sluoksniui.</p>
+    <div class="grid" id="filters">
+      <button data-f="bp">Šviesiau</button><button data-f="bm">Tamsiau</button>
+      <button data-f="cp">Daugiau kontrasto</button><button data-f="cm">Mažiau kontrasto</button>
+      <button data-f="gray">Nespalvotas</button><button data-f="sepia">Sepija</button>
+      <button data-f="inv">Invertuoti</button><button data-f="blur">Suliesinti</button>
+      <button data-f="flip">Apversti</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="modal"><img id="out" alt="Eksportuotas vaizdas"><p>Palaikykite paspaudę vaizdą (arba spustelėkite dešiniuoju klavišu), kad jį išsaugotumėte.</p><button id="close">Uždaryti</button></div>
+<script>
+const W=900,H=650,$=s=>document.querySelector(s);
+const disp=$('#disp'),dctx=disp.getContext('2d');
+let layers=[],act=0,tool='brush',color='#ff5a3c',size=14,op=1,undo=[],redo=[],n=0,drawing=false,last;
+
+function mk(name){const c=document.createElement('canvas');c.width=W;c.height=H;
+  return{c,x:c.getContext('2d',{willReadFrequently:true}),name:name||'Sluoksnis '+(++n),vis:true,op:1}}
+function render(ex){dctx.clearRect(0,0,W,H);for(const l of layers){if(!l.vis)continue;dctx.globalAlpha=l.op;dctx.drawImage(l.c,0,0)}dctx.globalAlpha=1;if(mask&&!ex)dctx.drawImage(selC,0,0)}
+function snap(){return layers.map(l=>({name:l.name,vis:l.vis,op:l.op,d:l.x.getImageData(0,0,W,H)}))}
+function load(s){tf=fx=null;layers=s.map(o=>{const l=mk(o.name);l.vis=o.vis;l.op=o.op;l.x.putImageData(o.d,0,0);return l});act=Math.max(0,Math.min(act,layers.length-1));ui();render()}
+function push(){tf=fx=null;$('#scl').value=100;$('#rot').value=0;$('#afw').value=0;$('#afc').value=0;undo.push({s:snap(),a:act});if(undo.length>12)undo.shift();redo=[]}
+function doUndo(){if(!undo.length)return toast('Nėra ką atšaukti');redo.push({s:snap(),a:act});const o=undo.pop();act=o.a;load(o.s)}
+function doRedo(){if(!redo.length)return toast('Nėra ką kartoti');undo.push({s:snap(),a:act});const o=redo.pop();act=o.a;load(o.s)}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),1600)}
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* Piešimas */
+const pt=e=>{const r=disp.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
+function stroke(a,b){const x=layers[act].x;x.save();
+  x.globalCompositeOperation=tool==='eraser'?'destination-out':'source-over';
+  x.globalAlpha=op;x.strokeStyle=color;x.lineWidth=size;x.lineCap=x.lineJoin='round';
+  x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0]+.01,b[1]);x.stroke();x.restore();render()}
+disp.addEventListener('pointerdown',e=>{
+  if(!layers[act].vis)return toast('Šis sluoksnis paslėptas');
+  disp.setPointerCapture(e.pointerId);drawing=true;last=pt(e);if(tool==='lasso'){pts=[last];return}if(tool==='wand'){drawing=false;return wand(last)}if(tool==='move'){ensureTF();return}if(tool==='push'||tool==='bulge'||tool==='pinch'){push();liqStart();if(tool!=='push')liq(last,last);return}push();stroke(last,last)});
+disp.addEventListener('pointermove',e=>{if(!drawing)return;const p=pt(e);
+  if(tool==='lasso'){pts.push(p);render();dctx.save();dctx.setLineDash([8,6]);dctx.lineWidth=2*W/disp.getBoundingClientRect().width;dctx.strokeStyle='#ff5a3c';dctx.beginPath();pts.forEach((q,i)=>i?dctx.lineTo(q[0],q[1]):dctx.moveTo(q[0],q[1]));dctx.stroke();dctx.restore();return}
+  if(tool==='move'){tf.dx+=p[0]-last[0];tf.dy+=p[1]-last[1];last=p;applyTF();return}
+  if(tool==='push'||tool==='bulge'||tool==='pinch'){liq(p,last);last=p;return}
+  stroke(last,p);last=p});
+['pointerup','pointercancel'].forEach(t=>disp.addEventListener(t,()=>{if(drawing&&tool==='lasso')finishLasso();drawing=false}));
+
+/* Filtrai */
+function px(fn){push();const x=layers[act].x,d=x.getImageData(0,0,W,H),o=mask?d.data.slice():null;fn(d.data);
+  if(o){const a=d.data;for(let i=0;i<mask.length;i++)if(!mask[i]){const j=i*4;a[j]=o[j];a[j+1]=o[j+1];a[j+2]=o[j+2];a[j+3]=o[j+3]}}x.putImageData(d,0,0);render()}
+function box(s,d,r,hor){const len=hor?W:H,cnt=hor?H:W,st=hor?4:W*4,ln=hor?W*4:4,cl=v=>Math.min(len-1,Math.max(0,v));
+  for(let k=0;k<cnt;k++){const o=k*ln;for(let c=0;c<4;c++){let sum=0;
+    for(let i=-r;i<=r;i++)sum+=s[o+c+cl(i)*st];
+    for(let i=0;i<len;i++){d[o+c+i*st]=sum/(2*r+1);sum+=s[o+c+cl(i+r+1)*st]-s[o+c+cl(i-r)*st]}}}}
+const each=(a,f)=>{for(let i=0;i<a.length;i+=4)f(a,i)};
+const contrast=v=>px(a=>{const f=259*(v+255)/(255*(259-v));each(a,(a,i)=>{for(let c=0;c<3;c++)a[i+c]=f*(a[i+c]-128)+128})});
+const bright=v=>px(a=>each(a,(a,i)=>{a[i]+=v;a[i+1]+=v;a[i+2]+=v}));
+const FX={
+  bp:()=>bright(30),bm:()=>bright(-30),cp:()=>contrast(40),cm:()=>contrast(-40),
+  gray:()=>px(a=>each(a,(a,i)=>{const g=.299*a[i]+.587*a[i+1]+.114*a[i+2];a[i]=a[i+1]=a[i+2]=g})),
+  sepia:()=>px(a=>each(a,(a,i)=>{const r=a[i],g=a[i+1],b=a[i+2];
+    a[i]=.393*r+.769*g+.189*b;a[i+1]=.349*r+.686*g+.168*b;a[i+2]=.272*r+.534*g+.131*b})),
+  inv:()=>px(a=>each(a,(a,i)=>{a[i]=255-a[i];a[i+1]=255-a[i+1];a[i+2]=255-a[i+2]})),
+  blur:()=>px(a=>{const t=new Uint8ClampedArray(a.length);box(a,t,3,true);box(t,a,3,false);box(a,t,3,true);box(t,a,3,false)}),
+  flip:()=>{push();const l=layers[act],t=document.createElement('canvas');t.width=W;t.height=H;t.getContext('2d').drawImage(l.c,0,0);
+    l.x.clearRect(0,0,W,H);l.x.save();l.x.translate(W,0);l.x.scale(-1,1);l.x.drawImage(t,0,0);l.x.restore();render()}
+};
+$('#filters').onclick=e=>{const f=e.target.dataset.f;if(!f)return;if(!layers[act].vis)return toast('Šis sluoksnis paslėptas');
+  const b=e.target,t=b.textContent;FX[f]();toast(t+' pritaikyta')};
+
+/* Sluoksniai */
+function ui(){
+  $('#list').innerHTML=layers.map((l,i)=>`<div class="row ${i===act?'on':''}" data-i="${i}">
+    <button data-a="eye" aria-label="Rodyti arba slėpti">${l.vis?'●':'○'}</button>
+    <span class="nm" data-a="sel">${esc(l.name)}</span>
+    <input type="range" data-a="op" min="0" max="100" value="${Math.round(l.op*100)}" aria-label="Sluoksnio skaidrumas">
+    <button data-a="up" aria-label="Aukščiau">↑</button><button data-a="dn" aria-label="Žemiau">↓</button>
+    <button data-a="del" aria-label="Ištrinti">✕</button></div>`).reverse().join('')}
+$('#list').onclick=e=>{const el=e.target.closest('[data-a]');if(!el||el.dataset.a==='op')return;
+  const i=+el.closest('.row').dataset.i,a=el.dataset.a;
+  if(a==='sel'){act=i}
+  else if(a==='eye'){push();layers[i].vis=!layers[i].vis}
+  else if(a==='up'&&i<layers.length-1){push();[layers[i],layers[i+1]]=[layers[i+1],layers[i]];act=i+1}
+  else if(a==='dn'&&i>0){push();[layers[i],layers[i-1]]=[layers[i-1],layers[i]];act=i-1}
+  else if(a==='del'){if(layers.length<2)return toast('Reikia bent vieno sluoksnio');push();layers.splice(i,1);act=Math.min(act,layers.length-1)}
+  ui();render()};
+$('#list').oninput=e=>{if(e.target.dataset.a!=='op')return;layers[+e.target.closest('.row').dataset.i].op=e.target.value/100;render()};
+$('#add').onclick=()=>{push();layers.push(mk());act=layers.length-1;ui()};
+
+/* Įrankiai ir valdikliai */
+function setTool(t){tool=t;for(const k of TOOLS)$('#t-'+k).classList.toggle('on',k===t)}
+const TOOLS=['brush','eraser','lasso','wand','move','push','bulge','pinch'];for(const k of TOOLS)$('#t-'+k).onclick=()=>setTool(k);
+document.querySelectorAll('.colin').forEach(i=>i.oninput=e=>{color=e.target.value;document.querySelectorAll('.colin').forEach(x=>x.value=color);if(tool==='eraser')setTool('brush')});
+$('#size').oninput=e=>{size=+e.target.value;$('#sizeo').textContent=size};
+$('#opac').oninput=e=>{op=e.target.value/100;$('#opaco').textContent=e.target.value};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.pn').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.t));fit()});
+$('#un').onclick=doUndo;$('#re').onclick=doRedo;
+addEventListener('keydown',e=>{if(!(e.ctrlKey||e.metaKey))return;const k=e.key.toLowerCase();
+  if(k==='z'){e.preventDefault();e.shiftKey?doRedo():doUndo()}else if(k==='y'){e.preventDefault();doRedo()}});
+
+/* Įkėlimas ir eksportas */
+$('#imp').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const fr=new FileReader();
+  fr.onload=()=>{const img=new Image();img.onload=()=>{push();const l=mk(f.name.slice(0,18));
+    const s=Math.min(W/img.width,H/img.height),w=img.width*s,h=img.height*s;
+    l.x.drawImage(img,(W-w)/2,(H-h)/2,w,h);layers.push(l);act=layers.length-1;ui();render();toast('Vaizdas įkeltas naujame sluoksnyje')};
+    img.onerror=()=>toast('Nepavyko atidaryti failo');img.src=fr.result};
+  fr.readAsDataURL(f);e.target.value=''};
+$('#exp').onclick=()=>{try{render(true);$('#out').src=disp.toDataURL('image/png');render();$('#modal').classList.add('show')}catch(_){toast('Eksportuoti nepavyko')}};
+$('#close').onclick=()=>$('#modal').classList.remove('show');
+
+/* Atranka, perkėlimas, lipdukai */
+let mask=null,tf=null,pts=[],addMode=false;
+const selC=document.createElement('canvas');selC.width=W;selC.height=H;
+function drawSel(){const x=selC.getContext('2d');x.clearRect(0,0,W,H);if(!mask)return;const d=x.createImageData(W,H),a=d.data;
+  for(let i=0;i<mask.length;i++)if(mask[i]){const j=i*4;a[j]=255;a[j+1]=90;a[j+2]=60;a[j+3]=90}x.putImageData(d,0,0)}
+function put(m){mask=m;drawSel();render()}
+function setMask(m){if(addMode===1&&mask)for(let i=0;i<m.length;i++)if(mask[i])m[i]=1;if(addMode===2){if(!mask)return;for(let i=0;i<m.length;i++)m[i]=mask[i]&&!m[i]?1:0}put(m)}
+function finishLasso(){render();if(pts.length<3)return;const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  x.beginPath();pts.forEach((q,i)=>i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]));x.closePath();x.fill();
+  const d=x.getImageData(0,0,W,H).data,m=new Uint8Array(W*H);for(let i=0;i<m.length;i++)m[i]=d[i*4+3]>127?1:0;setMask(m)}
+function wand(p){render(true);const d=dctx.getImageData(0,0,W,H).data;render();const sx=p[0]|0,sy=p[1]|0;if(sx<0||sy<0||sx>=W||sy>=H)return;
+  const si=(sy*W+sx)*4,r0=d[si],g0=d[si+1],b0=d[si+2],T=(+$('#tol').value*4.4)**2,m=new Uint8Array(W*H),st=[sy*W+sx];m[st[0]]=1;
+  while(st.length){const q=st.pop(),x=q%W,y=(q/W)|0;
+    for(const [nx,ny] of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]){if(nx<0||ny<0||nx>=W||ny>=H)continue;const k=ny*W+nx;if(m[k])continue;
+      const j=k*4,dr=d[j]-r0,dg=d[j+1]-g0,db=d[j+2]-b0;if(dr*dr+dg*dg+db*db<=T){m[k]=1;st.push(k)}}}
+  setMask(m)}
+function needMask(){if(!mask)toast('Pirmiausia pažymėkite sritį');return !!mask}
+function cut(erase){if(!needMask())return;push();const x=layers[act].x,d=x.getImageData(0,0,W,H),a=d.data,nl=mk('Iškirpta'),nd=nl.x.createImageData(W,H),b=nd.data;
+  for(let i=0;i<mask.length;i++)if(mask[i]){const j=i*4;b[j]=a[j];b[j+1]=a[j+1];b[j+2]=a[j+2];b[j+3]=a[j+3];if(erase)a[j+3]=0}
+  nl.x.putImageData(nd,0,0);if(erase)x.putImageData(d,0,0);layers.splice(act+1,0,nl);act++;ui();render();toast(erase?'Iškirpta į naują sluoksnį':'Nukopijuota į naują sluoksnį')}
+function erase(){if(!needMask())return;push();const x=layers[act].x,d=x.getImageData(0,0,W,H),a=d.data;for(let i=0;i<mask.length;i++)if(mask[i])a[i*4+3]=0;x.putImageData(d,0,0);render()}
+function hsl(r,g,b){r/=255;g/=255;b/=255;const M=Math.max(r,g,b),m=Math.min(r,g,b),l=(M+m)/2,d=M-m;let h=0,s=0;
+  if(d){s=d/(1-Math.abs(2*l-1));h=M===r?((g-b)/d+6)%6:M===g?(b-r)/d+2:(r-g)/d+4}return[h*60,s,l]}
+function rgbf(h,s,l){const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;
+  const[r,g,b]=h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x];return[(r+m)*255,(g+m)*255,(b+m)*255]}
+function paint(fill){if(!needMask())return;push();const x=layers[act].x,d=x.getImageData(0,0,W,H),a=d.data,c=parseInt(color.slice(1),16),R=c>>16,G=c>>8&255,B=c&255,[th,ts,tl]=hsl(R,G,B);
+  for(let i=0;i<mask.length;i++)if(mask[i]){const j=i*4;
+    if(fill){a[j]=R;a[j+1]=G;a[j+2]=B;a[j+3]=255}
+    else if(a[j+3]){const l=hsl(a[j],a[j+1],a[j+2])[2],[r,g,b]=rgbf(th,ts,l*.6+tl*.4);a[j]=r;a[j+1]=g;a[j+2]=b}}
+  x.putImageData(d,0,0);render()}
+function ensureTF(){const l=layers[act];if(tf&&tf.layer===l)return;push();
+  const a=l.x.getImageData(0,0,W,H).data;let x0=W,y0=H,x1=-1,y1=-1;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(a[(y*W+x)*4+3]>8){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+  const b=document.createElement('canvas');b.width=W;b.height=H;b.getContext('2d').drawImage(l.c,0,0);
+  tf={layer:l,base:b,cx:x1<0?W/2:(x0+x1)/2,cy:x1<0?H/2:(y0+y1)/2,dx:0,dy:0,s:1,r:0}}
+function applyTF(){const x=tf.layer.x;x.clearRect(0,0,W,H);x.save();x.translate(tf.cx+tf.dx,tf.cy+tf.dy);x.rotate(tf.r);x.scale(tf.s,tf.s);x.translate(-tf.cx,-tf.cy);x.drawImage(tf.base,0,0);x.restore();render()}
+['scl','rot'].forEach(id=>$('#'+id).oninput=e=>{const v=e.target.value;if(!layers[act].vis)return toast('Šis sluoksnis paslėptas');
+  ensureTF();e.target.value=v;tf.s=$('#scl').value/100;tf.r=$('#rot').value*Math.PI/180;applyTF()});
+$('#addm').onclick=e=>{addMode=(+addMode+1)%3;e.target.textContent='Atrankos režimas: '+['nauja','pridėti','atimti'][addMode];e.target.classList.toggle('on',addMode>0)};
+$('#p-s').addEventListener('click',e=>{const a=e.target.dataset.s;if(!a)return;
+  ({cut:()=>cut(1),copy:()=>cut(0),del:erase,rec:()=>paint(0),fill:()=>paint(1),
+    inv:()=>{if(needMask())put(mask.map(v=>1-v))},face:autoFace,hair:autoHair,aiperson:()=>aiSel(0),aihair:()=>aiSel(1),aiface:()=>aiSel(3),smooth:()=>{if(needMask()){const b=bl1(mask,3),m=new Uint8Array(W*H);for(let i=0;i<m.length;i++)m[i]=b[i]>.5?1:0;put(m)}},none:()=>{mask=null;drawSel();render()}})[a]()});
+function addSticker(k){push();const l=mk({mus:'Ūsai',gls:'Akiniai',brd:'Barzda',hair:'Plaukai'}[k]),x=l.x;
+  x.translate(W/2,H/2);x.fillStyle=x.strokeStyle=color;x.lineCap='round';
+  if(k==='mus')for(const s of [1,-1]){x.save();x.scale(s,1);x.beginPath();x.moveTo(0,-8);x.bezierCurveTo(-30,-40,-90,-35,-130,-15);
+    x.bezierCurveTo(-160,0,-175,-30,-185,-45);x.bezierCurveTo(-170,10,-140,35,-100,32);x.bezierCurveTo(-55,30,-25,15,0,18);x.closePath();x.fill();x.restore()}
+  if(k==='gls'){x.lineWidth=10;for(const s of [-70,70]){x.beginPath();x.arc(s,0,55,0,7);x.stroke()}
+    x.beginPath();x.moveTo(-15,-5);x.quadraticCurveTo(0,-25,15,-5);x.moveTo(-125,-5);x.lineTo(-190,-20);x.moveTo(125,-5);x.lineTo(190,-20);x.stroke()}
+  if(k==='brd'){x.beginPath();x.moveTo(-110,-40);x.bezierCurveTo(-120,60,-70,140,0,150);x.bezierCurveTo(70,140,120,60,110,-40);x.bezierCurveTo(70,10,-70,10,-110,-40);x.closePath();x.fill()}
+  if(k==='hair'){x.beginPath();x.moveTo(-140,40);x.bezierCurveTo(-170,-60,-110,-140,0,-140);x.bezierCurveTo(110,-140,170,-60,140,40);x.bezierCurveTo(120,-20,80,-60,0,-60);x.bezierCurveTo(-80,-60,-120,-20,-140,40);x.closePath();x.fill()}
+  layers.push(l);act=layers.length-1;ui();render();document.querySelector('nav [data-t=s]').click();setTool('move');toast('Vilkite pirštu, kad perkeltumėte')}
+$('#stk').onclick=e=>{if(e.target.dataset.k)addSticker(e.target.dataset.k)};
+document.querySelector('nav [data-t=p]').addEventListener('click',()=>setTool('brush'));
+document.querySelector('nav [data-t=s]').addEventListener('click',()=>{if(!['lasso','wand','move'].includes(tool))setTool('lasso')});
+document.querySelector('nav [data-t=c]').addEventListener('click',()=>{if(!['push','bulge','pinch'].includes(tool))setTool('push')});
+
+/* Forma (stumdymas) */
+let lq=null;
+function liqStart(){lq=layers[act].x.getImageData(0,0,W,H)}
+function bil(s,sx,sy,o,i){sx=Math.max(0,Math.min(W-1.001,sx));sy=Math.max(0,Math.min(H-1.001,sy));
+  const x0=sx|0,y0=sy|0,fx=sx-x0,fy=sy-y0,a=(y0*W+x0)*4,b=a+4,c=a+W*4,e=c+4;
+  for(let k=0;k<4;k++)o[i+k]=s[a+k]*(1-fx)*(1-fy)+s[b+k]*fx*(1-fy)+s[c+k]*(1-fx)*fy+s[e+k]*fx*fy}
+function liq(p,q){if(!lq)return;const r=+$('#lsz').value,k=$('#lst').value/100,o=lq.data,s=new Uint8ClampedArray(o),
+  x0=Math.max(0,(p[0]-r)|0),x1=Math.min(W-1,Math.ceil(p[0]+r)),y0=Math.max(0,(p[1]-r)|0),y1=Math.min(H-1,Math.ceil(p[1]+r)),mx=p[0]-q[0],my=p[1]-q[1];
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const dx=x-p[0],dy=y-p[1],t=1-Math.hypot(dx,dy)/r;if(t<=0)continue;const f=t*t*(3-2*t);let sx,sy;
+    if(tool==='push'){sx=x-mx*f*k*1.6;sy=y-my*f*k*1.6}
+    else{const a=(tool==='bulge'?-1:1)*k*.3*f;sx=p[0]+dx*(1+a);sy=p[1]+dy*(1+a)}
+    bil(s,sx,sy,o,(y*W+x)*4)}
+  layers[act].x.putImageData(lq,0,0);render()}
+
+/* Automatinė atranka (odos spalva ir spalvų augimas) */
+function comp(){render(true);const d=dctx.getImageData(0,0,W,H).data;render();return d}
+function isSkin(d,j){const r=d[j],g=d[j+1],b=d[j+2],y=.299*r+.587*g+.114*b,cb=128-.1687*r-.3313*g+.5*b,cr=128+.5*r-.4187*g-.0813*b;return y>40&&cb>77&&cb<127&&cr>133&&cr<173}
+function bl1(m,r){const t=new Float32Array(W*H),o=new Float32Array(W*H),n=2*r+1,cx=v=>Math.min(W-1,Math.max(0,v)),cy=v=>Math.min(H-1,Math.max(0,v));
+  for(let y=0;y<H;y++){let s=0;for(let i=-r;i<=r;i++)s+=m[y*W+cx(i)];for(let x=0;x<W;x++){t[y*W+x]=s/n;s+=m[y*W+cx(x+r+1)]-m[y*W+cx(x-r)]}}
+  for(let x=0;x<W;x++){let s=0;for(let i=-r;i<=r;i++)s+=t[cy(i)*W+x];for(let y=0;y<H;y++){o[y*W+x]=s/n;s+=t[cy(y+r+1)*W+x]-t[cy(y-r)*W+x]}}
+  return o}
+function largest(m){const lab=new Int32Array(W*H),st=new Int32Array(W*H);let best=0,bn=0,id=0;
+  for(let s=0;s<m.length;s++){if(!m[s]||lab[s])continue;id++;let sp=0,n=0;st[sp++]=s;lab[s]=id;
+    while(sp){const q=st[--sp];n++;const x=q%W;
+      if(x<W-1&&m[q+1]&&!lab[q+1]){lab[q+1]=id;st[sp++]=q+1}
+      if(x>0&&m[q-1]&&!lab[q-1]){lab[q-1]=id;st[sp++]=q-1}
+      if(q>=W&&m[q-W]&&!lab[q-W]){lab[q-W]=id;st[sp++]=q-W}
+      if(q<W*H-W&&m[q+W]&&!lab[q+W]){lab[q+W]=id;st[sp++]=q+W}}
+    if(n>bn){bn=n;best=id}}
+  if(!best||bn<W*H*.01)return null;const o=new Uint8Array(W*H);for(let i=0;i<o.length;i++)o[i]=lab[i]===best?1:0;return o}
+function fillHoles(m){const bg=new Uint8Array(W*H),st=[],add=k=>{if(!m[k]&&!bg[k]){bg[k]=1;st.push(k)}};
+  for(let x=0;x<W;x++){add(x);add((H-1)*W+x)}for(let y=0;y<H;y++){add(y*W);add(y*W+W-1)}
+  while(st.length){const q=st.pop(),x=q%W;if(x<W-1)add(q+1);if(x>0)add(q-1);if(q>=W)add(q-W);if(q<W*H-W)add(q+W)}
+  for(let i=0;i<m.length;i++)if(!bg[i])m[i]=1}
+function bbox(m){let x0=W,y0=H,x1=0,y1=0;for(let i=0;i<m.length;i++)if(m[i]){const x=i%W,y=(i/W)|0;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}return[x0,y0,x1,y1]}
+function findFace(d){const s=new Float32Array(W*H);for(let i=0;i<s.length;i++)s[i]=isSkin(d,i*4)?1:0;
+  const b=bl1(s,5),m=new Uint8Array(W*H);for(let i=0;i<m.length;i++)m[i]=b[i]>.5?1:0;
+  const f=largest(m);if(f)fillHoles(f);return f}
+function autoFace(){const f=findFace(comp());
+  if(!f)return toast('Veido nerasta. Pabandykite „Burtų lazdelę“');
+  setMask(f);toast('Rasta oda (veidas ir kaklas). Pataisykite režimu „atimti“')}
+function grow(d,sx,sy,T,ok){let r0=0,g0=0,b0=0,c=0;
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const x=sx+dx,y=sy+dy;if(x<0||y<0||x>=W||y>=H)continue;const j=(y*W+x)*4;r0+=d[j];g0+=d[j+1];b0+=d[j+2];c++}
+  r0/=c;g0/=c;b0/=c;const m=new Uint8Array(W*H),st=[sy*W+sx];m[st[0]]=1;
+  while(st.length){const q=st.pop(),x=q%W,y=(q/W)|0;
+    for(const[nx,ny]of[[x+1,y],[x-1,y],[x,y+1],[x,y-1]]){if(nx<0||ny<0||nx>=W||ny>=H)continue;const k=ny*W+nx;if(m[k]||!ok(nx,ny,k))continue;
+      const j=k*4,dr=d[j]-r0,dg=d[j+1]-g0,db=d[j+2]-b0;if(dr*dr+dg*dg+db*db<=T){m[k]=1;st.push(k)}}}
+  return m}
+function autoHair(){const d=comp(),f=findFace(d);if(!f)return toast('Pirmiausia reikia rasti veidą');
+  const[x0,y0,x1,y1]=bbox(f),w=x1-x0,sy=Math.round(y0-.08*w),sx=Math.round((x0+x1)/2);
+  if(sy<4)return toast('Virš kaktos nėra vietos plaukams');
+  const rx0=x0-.45*w,rx1=x1+.45*w,ry0=Math.max(0,y0-.9*w),ry1=y0+.9*w,T=(+$('#tol').value*4.4)**2;
+  const m=grow(d,sx,sy,T,(x,y,k)=>x>=rx0&&x<=rx1&&y>=ry0&&y<=ry1&&!f[k]&&!isSkin(d,k*4));
+  const b=bl1(m,3);for(let i=0;i<m.length;i++)m[i]=b[i]>.5?1:0;fillHoles(m);
+  setMask(m);toast('Plaukai pažymėti. Jautrumą keiskite slankikliu, o klaidas taisykite atranka')}
+
+/* AI (MediaPipe): modeliai kraunami tik pirmą kartą paspaudus AI mygtuką arba slankiklį */
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+// selfie_multiclass: 0 fonas, 1 plaukai, 2 kūno oda, 3 veido oda, 4 drabužiai, 5 kita
+const M_SEG='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+const M_FACE='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+let ai=null,aiP=null,fx=null;
+async function aiInit(){
+  toast('Kraunami AI modeliai…');
+  try{
+    const m=await import(MP+'/+esm'),fs=await m.FilesetResolver.forVisionTasks(MP+'/wasm');
+    const mkm=async(C,path,extra)=>{for(const d of['GPU','CPU']){try{return await C.createFromOptions(fs,{baseOptions:{modelAssetPath:path,delegate:d},runningMode:'IMAGE',...extra})}catch(e){console.warn(d,e)}}throw new Error('model')};
+    ai={seg:await mkm(m.ImageSegmenter,M_SEG,{outputCategoryMask:true,outputConfidenceMasks:false}),face:await mkm(m.FaceLandmarker,M_FACE,{numFaces:1})};
+    return ai;
+  }catch(e){console.error(e);toast('AI nepavyko: reikia interneto ir puslapio per http(s)/localhost');return null}
+}
+function aiLoad(){return ai?Promise.resolve(ai):aiP||(aiP=aiInit().then(r=>{if(!r)aiP=null;return r}))}
+function compCanvas(){render(true);const t=document.createElement('canvas');t.width=W;t.height=H;t.getContext('2d').drawImage(disp,0,0);render();return t}
+async function aiSel(cls){
+  const a=await aiLoad();if(!a)return;toast('Analizuojama…');await new Promise(r=>setTimeout(r,30));
+  const res=a.seg.segment(compCanvas()),cm=res.categoryMask,mw=cm.width,mh=cm.height,arr=cm.getAsUint8Array(),bin=new Float32Array(W*H);let n=0;
+  for(let y=0;y<H;y++){const ry=((y*mh/H)|0)*mw;for(let x=0;x<W;x++){const v=arr[ry+((x*mw/W)|0)];if(cls===0?v!==0:v===cls){bin[y*W+x]=1;n++}}}
+  try{cm.close()}catch(_){}
+  if(n<W*H*.002)return toast('Nieko nerasta. Ar matomas žmogus?');
+  const b=bl1(bin,2),m=new Uint8Array(W*H);for(let i=0;i<m.length;i++)m[i]=b[i]>.5?1:0;setMask(m);toast('Rasta. Pataisykite atrankos režimais, jei reikia');
+}
+async function ensureFX(){
+  const l=layers[act];if(fx&&fx.layer===l)return true;
+  const a=await aiLoad();if(!a)return false;
+  if(fx&&fx.layer===l)return true;
+  const fr=a.face.detect(compCanvas()),p=fr.faceLandmarks&&fr.faceLandmarks[0];
+  if(!p){toast('Veido nerasta');return false}
+  push();fx={layer:l,lm:p.map(q=>[q.x*W,q.y*H]),base:l.x.getImageData(0,0,W,H)};return true;
+}
+function warpFace(d,lm,kw,kc){
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9,sx=0;for(const i of OVAL){const[x,y]=lm[i];x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);sx+=x}
+  const c=sx/OVAL.length,hw=(x1-x0)/2,yN=lm[1][1],yM=lm[17][1],yC=y1,fh=yC-y0,s=new Uint8ClampedArray(d),
+    ya=Math.max(0,Math.floor(yN)),yb=Math.min(H-1,Math.ceil(yC+.25*fh)),xa=Math.max(0,Math.floor(c-1.5*hw)),xb=Math.min(W-1,Math.ceil(c+1.5*hw));
+  for(let y=ya;y<=yb;y++){const t=(y-yN)/(yC-yN),wy=t<0?0:t<=1?t*t*(3-2*t):Math.max(0,1-(t-1)/.25),u=(y-yM)/(yC+.2*fh-yM),wc=u<0||u>1?0:4*u*(1-u);
+    for(let x=xa;x<=xb;x++){const dx=x-c,ad=Math.abs(dx)/hw,gx=ad<=1.05?1:Math.max(0,1-(ad-1.05)/.4);if(!gx)continue;
+      bil(s,x+dx*kw*wy*gx,y-kc*(y-yM)*gx*wc,d,(y*W+x)*4)}}
+}
+function applyFX(){
+  const kw=$('#afw').value/100*.3,kc=$('#afc').value/100*.5,d=new ImageData(new Uint8ClampedArray(fx.base.data),W,H);
+  if(kw||kc)warpFace(d.data,fx.lm,kw,kc);fx.layer.x.putImageData(d,0,0);render();
+}
+['afw','afc'].forEach(id=>$('#'+id).oninput=async e=>{
+  const v=e.target.value;if(!layers[act].vis)return toast('Šis sluoksnis paslėptas');
+  if(!await ensureFX()){e.target.value=0;return}
+  e.target.value=v;applyFX();
+});
+
+/* Dydžio pritaikymas */
+
+function fit(){const r=$('#stage').getBoundingClientRect(),s=Math.min((r.width-16)/W,(r.height-16)/H);
+  if(s>0){disp.style.width=W*s+'px';disp.style.height=H*s+'px'}}
+new ResizeObserver(fit).observe($('#stage'));
+
+/* Pradžia */
+const bg=mk('Fonas');bg.x.fillStyle='#fff';bg.x.fillRect(0,0,W,H);
+layers=[bg,mk()];act=1;ui();render();fit();
+</script>
+</body>
+</html>
